@@ -1,26 +1,379 @@
 @import "tailwindcss";
 
+/* NORTHLINE design system.
+   Tokens follow the supplied visual style guide (v1.0). Light is the primary
+   environment; dark is a purpose-built "night operations" theme, not an inversion. */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Neutrals */
+  --nl-bg: #f4f5f7;
+  --nl-surface: #ffffff;
+  --nl-surface-soft: #f8f9fb;
+  --nl-surface-sunken: #eef0f4;
+  --nl-border: #e4e7ec;
+  --nl-border-strong: #d3d8e0;
+  --nl-text: #111318;
+  --nl-text-secondary: #5b6472;
+  --nl-text-muted: #656e7b;
+  /* Guide value, kept for non-text use: icon strokes, chart axes, hairlines. */
+  --nl-text-faint: #98a2b3;
+
+  /* Brand */
+  --nl-brand: #5b35d5;
+  --nl-brand-hover: #4d2ac0;
+  --nl-brand-soft: #eeeafe;
+  --nl-brand-border: #d7cdfb;
+  /* Solid fill behind white button text. Kept separate from --nl-brand, which also
+     tints soft backgrounds and map geometry and cannot be darkened for contrast. */
+  --nl-brand-solid: #5b35d5;
+  --nl-brand-solid-hover: #4d2ac0;
+  --nl-on-brand: #ffffff;
+
+  /* Status */
+  --nl-success: #18a66a;
+  --nl-success-soft: #e3f5ed;
+  --nl-success-border: #a9dfc8;
+  --nl-success-text: #0a6b41;
+  --nl-warning: #e8a317;
+  --nl-warning-soft: #fdf3de;
+  --nl-warning-border: #f0d59a;
+  --nl-warning-text: #855406;
+  --nl-critical: #e05252;
+  --nl-critical-soft: #fdeaea;
+  --nl-critical-border: #f4bcbc;
+  --nl-critical-text: #b42020;
+  --nl-info: #4c8dff;
+  --nl-info-soft: #e9f0ff;
+  --nl-info-border: #b6cfff;
+  --nl-info-text: #2059c4;
+  --nl-neutral-soft: #f0f2f5;
+
+  /* Map environment */
+  --nl-map-water: #e7ebf2;
+  --nl-map-land: #ffffff;
+  --nl-map-land-context: #f2f4f8;
+  --nl-map-stroke: #d3dae4;
+  --nl-map-graticule: #dde2ea;
+
+  /* Elevation. Shadows are tinted toward the neutral base, never pure black. */
+  --nl-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1);
+  --nl-shadow-md: 0 8px 24px rgba(16, 24, 40, 0.08), 0 2px 6px rgba(16, 24, 40, 0.06);
+  --nl-shadow-lg: 0 24px 48px -12px rgba(16, 24, 40, 0.18);
+  --nl-ring: rgba(91, 53, 213, 0.35);
+}
+
+.dark {
+  --nl-bg: #0d1014;
+  --nl-surface: #15191f;
+  --nl-surface-soft: #12161b;
+  --nl-surface-sunken: #0a0d11;
+  --nl-elevated: #1c2128;
+  --nl-border: #2a3038;
+  --nl-border-strong: #3a424d;
+  --nl-text: #f5f7fa;
+  --nl-text-secondary: #a3abb7;
+  --nl-text-muted: #868f9c;
+  --nl-text-faint: #6c7784;
+
+  --nl-brand: #8a6cff;
+  --nl-brand-hover: #9a80ff;
+  --nl-brand-soft: #1b1731;
+  --nl-brand-border: #3b3163;
+  --nl-brand-solid: #5b39d1;
+  --nl-brand-solid-hover: #6a49dd;
+  --nl-on-brand: #ffffff;
+
+  --nl-success: #35c285;
+  --nl-success-soft: #10241c;
+  --nl-success-border: #1d4436;
+  --nl-success-text: #46d495;
+  --nl-warning: #f0b429;
+  --nl-warning-soft: #251d0d;
+  --nl-warning-border: #4a3a15;
+  --nl-warning-text: #f5c24d;
+  --nl-critical: #f0716f;
+  --nl-critical-soft: #2a1517;
+  --nl-critical-border: #522527;
+  --nl-critical-text: #f78a88;
+  --nl-info: #6ba5ff;
+  --nl-info-soft: #101d31;
+  --nl-info-border: #1e3557;
+  --nl-info-text: #86b7ff;
+  --nl-neutral-soft: #1b2027;
+
+  --nl-map-water: #080a0e;
+  --nl-map-land: #1a2028;
+  --nl-map-land-context: #12171d;
+  --nl-map-stroke: #353f4c;
+  --nl-map-graticule: #171d24;
+
+  --nl-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --nl-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --nl-shadow-lg: 0 24px 48px -12px rgba(0, 0, 0, 0.6);
+  --nl-ring: rgba(138, 108, 255, 0.45);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--nl-bg);
+  --color-surface: var(--nl-surface);
+  --color-surface-soft: var(--nl-surface-soft);
+  --color-surface-sunken: var(--nl-surface-sunken);
+  --color-elevated: var(--nl-elevated, var(--nl-surface));
+  --color-line: var(--nl-border);
+  --color-line-strong: var(--nl-border-strong);
+  --color-ink: var(--nl-text);
+  --color-ink-2: var(--nl-text-secondary);
+  --color-ink-3: var(--nl-text-muted);
+  --color-ink-faint: var(--nl-text-faint);
+
+  --color-brand: var(--nl-brand);
+  --color-brand-hover: var(--nl-brand-hover);
+  --color-brand-solid: var(--nl-brand-solid);
+  --color-brand-solid-hover: var(--nl-brand-solid-hover);
+  --color-brand-soft: var(--nl-brand-soft);
+  --color-brand-border: var(--nl-brand-border);
+  --color-on-brand: var(--nl-on-brand);
+
+  --color-success: var(--nl-success);
+  --color-success-soft: var(--nl-success-soft);
+  --color-success-border: var(--nl-success-border);
+  --color-success-text: var(--nl-success-text);
+  --color-warning: var(--nl-warning);
+  --color-warning-soft: var(--nl-warning-soft);
+  --color-warning-border: var(--nl-warning-border);
+  --color-warning-text: var(--nl-warning-text);
+  --color-critical: var(--nl-critical);
+  --color-critical-soft: var(--nl-critical-soft);
+  --color-critical-border: var(--nl-critical-border);
+  --color-critical-text: var(--nl-critical-text);
+  --color-info: var(--nl-info);
+  --color-info-soft: var(--nl-info-soft);
+  --color-info-border: var(--nl-info-border);
+  --color-info-text: var(--nl-info-text);
+  --color-neutral-soft: var(--nl-neutral-soft);
+
+  --color-map-water: var(--nl-map-water);
+  --color-map-land: var(--nl-map-land);
+  --color-map-land-context: var(--nl-map-land-context);
+  --color-map-stroke: var(--nl-map-stroke);
+  --color-map-graticule: var(--nl-map-graticule);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  /* Radius scale. Controls 6px, panels 10px, wells 8px. Badges are pill by rule. */
+  --radius-control: 6px;
+  --radius-well: 8px;
+  --radius-panel: 10px;
+
+  --shadow-sm: var(--nl-shadow-sm);
+  --shadow-md: var(--nl-shadow-md);
+  --shadow-lg: var(--nl-shadow-lg);
+
+  /* Type scale from the style guide */
+  --text-display: 3rem;
+  --text-display--line-height: 3.5rem;
+  --text-display--letter-spacing: -0.03em;
+  --text-h1: 1.75rem;
+  --text-h1--line-height: 2.25rem;
+  --text-h1--letter-spacing: -0.02em;
+  --text-h2: 1.25rem;
+  --text-h2--line-height: 1.75rem;
+  --text-h2--letter-spacing: -0.015em;
+  --text-metric: 1.75rem;
+  --text-metric--line-height: 2.125rem;
+  --text-metric--letter-spacing: -0.02em;
+  --text-body-lg: 0.9375rem;
+  --text-body-lg--line-height: 1.5rem;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.25rem;
+  --text-small: 0.8125rem;
+  --text-small--line-height: 1.125rem;
+  --text-caption: 0.6875rem;
+  --text-caption--line-height: 1rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    border-color: var(--nl-border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--nl-bg);
+    color: var(--nl-text);
+    font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv05" 1, "ss01" 1;
+  }
+
+  /* Every figure in the product aligns in columns. */
+  table,
+  [data-numeric],
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "cv05" 1;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--nl-brand);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  /* Focus rings are drawn by :focus-visible only, so pointer users never see them. */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  ::selection {
+    background: var(--nl-brand-soft);
+    color: var(--nl-text);
+  }
+
+  ::placeholder {
+    color: var(--nl-text-muted);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--nl-border-strong) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--nl-border-strong);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: var(--nl-text-muted);
+    background-clip: content-box;
+  }
+
+  /* Label style used for section headers and table column heads. */
+  .label-eyebrow {
+    font-size: 11px;
+    line-height: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--nl-text-muted);
+  }
+}
+
+/* Motion. Kept short and functional. Everything below respects reduced motion. */
+@keyframes nl-fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes nl-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nl-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translate3d(16px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes nl-pulse-ring {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.55;
+  }
+  70% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+
+@keyframes nl-shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.animate-fade-up {
+  animation: nl-fade-up 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-fade-in {
+  animation: nl-fade-in 220ms ease-out both;
+}
+
+.animate-slide-in-right {
+  animation: nl-slide-in-right 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.skeleton {
+  background-image: linear-gradient(
+    90deg,
+    var(--nl-surface-sunken) 25%,
+    var(--nl-neutral-soft) 37%,
+    var(--nl-surface-sunken) 63%
+  );
+  background-size: 200% 100%;
+  animation: nl-shimmer 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Route flow. Only ever applied to the one selected corridor. */
+@keyframes nl-route-flow {
+  to {
+    stroke-dashoffset: -12;
+  }
 }
