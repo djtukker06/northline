@@ -1,0 +1,149 @@
+# Docker Compose describes the whole backend as a set of cooperating containers.
+# One command (`docker compose up`) starts identical infrastructure on any machine,
+# which is what "works on my machine" problems are solved with.
+#
+# Each entry under `services` becomes one container. Containers reach each other by
+# service name over a private network, so `DB_HOST=mysql` resolves to the database
+# container without anyone knowing its IP address.
+
+name: northline
+
+services:
+  # ---------------------------------------------------------------------------
+  # nginx: the web server. It receives every HTTP request first, serves static
+  # files itself, and hands PHP requests to php-fpm. Putting a web server in front
+  # of the application is standard: it terminates connections, handles gzip and
+  # headers, and shields the slower application process from slow clients.
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: northline-nginx
+    ports:
+      # "host:container" - port 8080 on your Mac maps to port 80 inside the container.
+      - "${API_PORT:-8080}:80"
+    volumes:
+      - ./api:/var/www/html:ro
+      - ./api/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      php:
+        condition: service_started
+    networks: [northline]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # php: the application itself, running as PHP-FPM (FastCGI Process Manager).
+  # FPM keeps a pool of PHP worker processes alive and hands requests to whichever
+  # is free, instead of booting PHP from scratch on every request.
+  # ---------------------------------------------------------------------------
+  php:
+    build:
+      context: ./api
+      dockerfile: docker/php/Dockerfile
+    container_name: northline-php
+    volumes:
+      # A bind mount: the folder on your Mac IS the folder in the container, so a
+      # code change is live immediately without rebuilding the image.
+      - ./api:/var/www/html
+    env_file: [.env]
+    environment:
+      # Service names double as hostnames on the shared Docker network.
+      DB_HOST: mysql
+      REDIS_HOST: redis
+    depends_on:
+      mysql:
+        # Wait for the database to answer, not merely to have started. Without this
+        # the application boots first and every query fails for the first few seconds.
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [northline]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # queue: the same image as `php`, started with a different command. It runs no
+  # web requests; it pulls background jobs off the queue and executes them. Work
+  # that is slow or can fail (sending mail, recalculating statistics) goes here so
+  # the HTTP request can return immediately.
+  # ---------------------------------------------------------------------------
+  queue:
+    build:
+      context: ./api
+      dockerfile: docker/php/Dockerfile
+    container_name: northline-queue
+    command: php artisan queue:work --tries=3 --timeout=90 --sleep=3
+    volumes:
+      - ./api:/var/www/html
+    env_file: [.env]
+    environment:
+      DB_HOST: mysql
+      REDIS_HOST: redis
+    depends_on:
+      php:
+        condition: service_started
+    networks: [northline]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # mysql: the relational database. This is where the dashboard's data actually
+  # lives. The named volume keeps that data on disk between restarts; without it,
+  # every `docker compose down` would wipe the database.
+  # ---------------------------------------------------------------------------
+  mysql:
+    image: mysql:8.4
+    container_name: northline-mysql
+    command: --default-authentication-plugin=caching_sha2_password
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-northline}
+      MYSQL_USER: ${DB_USERNAME:-northline}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootsecret}
+    ports:
+      # Exposed so you can connect a GUI such as TablePlus or DBeaver and look
+      # at the tables directly. In production you would not open this port.
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./api/docker/mysql/my.cnf:/etc/mysql/conf.d/northline.cnf:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASSWORD:-rootsecret}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks: [northline]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # redis: an in-memory key/value store. Used here for two jobs:
+  #   1. Cache - keep the answer to an expensive query in memory so the next
+  #      request skips the database entirely.
+  #   2. Queue - hold background jobs until the `queue` worker picks them up.
+  # It is fast because it never touches disk on the hot path, and it forgets
+  # things on purpose (keys expire).
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7.4-alpine
+    container_name: northline-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [northline]
+    restart: unless-stopped
+
+# Named volumes are managed by Docker and survive container rebuilds.
+volumes:
+  mysql-data:
+  redis-data:
+
+# A private network for these containers. Nothing outside reaches them except
+# through the ports published above.
+networks:
+  northline:
+    driver: bridge

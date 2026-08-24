@@ -1,103 +1,150 @@
 # NORTHLINE
 
-A logistics intelligence platform. One view of shipments, fleet, warehouses and routes
-across a European road-freight network.
+A logistics intelligence platform. One view of shipments, fleet, warehouses and
+routes across a European road-freight network.
 
-This is a frontend product build. There is no backend: the application runs on a
-deterministic mock dataset that is generated at module load and is internally consistent
-across every screen.
+A Next.js frontend and a Laravel API, each in its own container, sharing MySQL and
+Redis.
+
+```
+northline/
+  frontend/        Next.js 16, React 19, TypeScript, Tailwind v4
+  api/             Laravel 12, PHP 8.3
+  docs/            backend-glossary.md
+  docker-compose.yml
+  Makefile
+```
+
+---
 
 ## Running it
 
+You need **Docker Desktop** for the backend, and **Node 22** for the frontend.
+
 ```bash
+# 1. Backend: builds the images, starts the containers, migrates and seeds.
+make setup
+
+# 2. Frontend, in a second terminal.
+cd frontend
+cp .env.example .env.local
 npm install
 npm run dev
 ```
 
-The app opens directly into the operation at `/dashboard`. There is no marketing surface.
+The dashboard is on http://localhost:3000 and the API on http://localhost:8080.
 
-## What is here
-
-| Route | Purpose |
-| --- | --- |
-| `/dashboard` | Operations overview: KPIs, live network map, activity feed, performance, fleet, warehouses, alerts |
-| `/shipments` | The consignment book, filterable and sortable across 1,924 records |
-| `/shipments/[id]` | Single consignment: route, timeline, cargo, vehicle, driver, activity |
-| `/fleet` | Vehicle availability, utilisation, driver hours, per-vehicle detail |
-| `/routes` | Corridors on the map with stops, cost profile and assigned vehicles |
-| `/warehouses` | Facility capacity, throughput, staffing and geography |
-| `/planning` | Dispatch timeline with conflict detection and dock occupancy |
-| `/analytics` | Delivery performance, cost, efficiency, carrier scorecard |
-| `/alerts` | Every exception, filterable by severity, category, location and age |
-
-Press `⌘K` (or `/`) anywhere for search across shipments, vehicles, routes, warehouses,
-drivers and alerts.
-
-## Architecture
-
-```
-src/
-  app/
-    (app)/            Route group carrying the application shell
-  components/
-    shell/            Sidebar, topbar, command search, theme
-    ui/               Design-system primitives
-    map/              Custom SVG map surfaces
-    modules/          Composed product modules
-  lib/
-    data/             The mock dataset
-    geo.ts            Generated map geometry (do not edit by hand)
-    map-data.ts       Route geometry and marker placement
-    search.ts         Cross-entity search index
-```
-
-### The map
-
-The map is built from real geography rather than an embedded tile provider. Natural
-Earth 1:50m country outlines are projected through a Lambert conformal conic projection
-at build time by `tools/build-geo.mjs`, which writes `src/lib/geo.ts`. Hub coordinates
-pass through the identical projection, so markers and coastlines cannot drift apart.
-
-Regenerate after changing the hub list or the framing:
+Check the API is alive:
 
 ```bash
-node tools/build-geo.mjs
+curl http://localhost:8080/api/v1/health
 ```
 
-The frame is fitted to the hubs themselves rather than to the country geometry. Several
-network countries (Netherlands, France, Spain, Portugal) carry overseas territories that
-would otherwise pull the frame across the Atlantic.
+Fetch something real:
 
-### The dataset
+```bash
+curl -H "X-API-Key: nl_dev_dashboard_2f8c41d9b7e64a05" http://localhost:8080/api/v1/kpis
+```
 
-`src/lib/data/` generates 1,924 shipments, 184 vehicles, 70 drivers, 24 corridors, 18
-facilities, 55 alerts and 90 days of history from seeded PRNGs, so the server and client
-render identical output and hydration stays stable.
+`make help` lists every other command.
 
-Relationships hold across the product. A shipment's vehicle exists in the fleet, its
-route exists in the corridor list, and its origin and destination are real facilities.
-Headline figures are calibrated rather than asserted: freight tonnage is normalised so
-the in-transit total lands on 18,492 t, and per-vehicle utilisation is calibrated so
-fleet utilisation resolves to 82.6%.
+---
 
-The dataset is pinned to a fixed clock (18 August 2026, 14:20 Europe/Amsterdam) exported
-as `NOW`. Every relative time on screen is measured against it.
+## What is where
 
-### Theming
+### Frontend
 
-Tokens live in `src/app/globals.css` as CSS custom properties, surfaced to Tailwind
-through `@theme inline`. Light is the primary environment; dark is a separate
-"night operations" palette, not an inversion. Both themes carry the same information
-architecture.
+| Route | Data source |
+| --- | --- |
+| `/shipments` | **Live API**, server-side filtering, sorting and pagination |
+| `/shipments/[id]` | **Live API**, with relations and timeline |
+| `/dashboard`, `/fleet`, `/routes`, `/warehouses`, `/planning`, `/analytics`, `/alerts` | Local generator in `src/lib/data/`, migration pending |
 
-Text colours are split from fill colours. `--nl-success` and friends are used for bars,
-dots and map geometry; `--nl-success-text` and friends are used wherever the colour
-carries type. Every text tier passes WCAG AA against every surface in both themes.
+The migration is deliberately incremental. Shipments proves the whole stack; the
+remaining pages move over one at a time, which is how this is done in practice
+rather than in one commit that cannot be reviewed.
+
+`src/lib/api/` holds the client, the contract types and one function per query.
+
+### API
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/v1/health` | Readiness probe, no key required |
+| `GET /api/v1/kpis` | Headline network metrics, cached in Redis |
+| `GET /api/v1/history?days=7\|30\|90` | Daily performance series |
+| `GET /api/v1/shipments` | Paginated, filterable, sortable |
+| `GET /api/v1/shipments/{ref}` | One shipment with its timeline |
+| `GET /api/v1/vehicles` · `/{ref}` | Fleet |
+| `GET /api/v1/drivers` | Drivers, optionally those near their driving limit |
+| `GET /api/v1/routes` · `/{ref}` | Corridors and their stops |
+| `GET /api/v1/facilities` · `/{code}` | Warehouses and hubs |
+| `GET /api/v1/alerts` · `/{ref}` | Alerts |
+| `GET /api/v1/events` | Live operations feed |
+
+Everything except `/health` needs `X-API-Key` and is rate limited.
+
+---
+
+## The data
+
+The database holds 1,924 shipments, 9,557 timeline events, 184 vehicles, 70
+drivers, 24 corridors, 18 facilities, 55 alerts and 90 days of history.
+
+It comes from JSON fixtures in `api/database/data/`, generated once from the
+frontend's original generator:
+
+```bash
+cd frontend && npx tsx tools/export-dataset.ts
+```
+
+Seeding from committed fixtures means every developer, every CI run and every demo
+shows identical numbers, which is what you want when a screenshot has to match a
+bug report.
+
+Headline figures are calibrated rather than asserted: freight tonnage normalises to
+18,492 t in transit, and per-vehicle utilisation to 82.6% fleet-wide.
+
+---
+
+## Learning the backend vocabulary
+
+`docs/backend-glossary.md` explains every backend term this project uses: what it
+is, what it does, and what it means for the frontend. Containers, migrations,
+indexes, the N+1 problem, API keys versus JWTs, CORS, rate limiting, caching
+layers, health checks, CI. It ends with five questions worth asking a backend
+developer whenever you get a new endpoint to build against.
+
+The source is commented in the same spirit. `api/app/Http/Middleware/RequireApiKey.php`
+and `api/app/Models/Shipment.php` are good places to start reading.
+
+---
+
+## Testing
+
+```bash
+make test           # PHPUnit, against in-memory SQLite
+cd frontend && npx tsc --noEmit && npx eslint .
+```
+
+CI runs both on every push, plus a check that the migrations also apply cleanly to
+a real MySQL: SQLite is forgiving about things MySQL is not.
+
+---
+
+## The map
+
+The map is built from real geography, not an embedded tile provider. Natural Earth
+1:50m outlines are projected through a Lambert conformal conic projection at build
+time by `frontend/tools/build-geo.mjs`. Hub coordinates pass through the identical
+projection, so markers cannot drift from coastlines.
+
+---
 
 ## Notes on the brand guide
 
-The supplied guide was followed for typography, spacing, radii, elevation, brand colour
-and the dark palette. Three greys were darkened from their guide values because the
-guide's tier-3 grey (`#98A2B3`) and its status hues fail WCAG AA when used for the small
-type this interface relies on. The original value is retained as `--nl-text-faint` for
-non-text use such as chart axes and icon strokes.
+The supplied guide was followed for typography, spacing, radii, elevation, brand
+colour and the dark palette. Three greys were darkened from their guide values
+because the guide's tier-3 grey (`#98A2B3`) and its status hues fail WCAG AA at the
+small type this interface relies on. The original is kept as `--nl-text-faint` for
+non-text use such as chart axes.

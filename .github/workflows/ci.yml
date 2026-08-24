@@ -1,0 +1,124 @@
+# CONTINUOUS INTEGRATION
+#
+# Every push and every pull request runs this file on a clean machine. The point is
+# not that tests exist, it is that nobody can merge without them passing, and that
+# "it works on my machine" stops being an argument.
+#
+# A job runs on a fresh virtual machine. `services` start real containers alongside
+# it, so the API job tests against an actual MySQL and Redis rather than mocks: the
+# value of an integration test is that it uses the real thing.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  api:
+    name: API (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Prove the code runs on more than one PHP version, so an upgrade is not a leap.
+      matrix:
+        php: ['8.2', '8.3']
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: northline_test
+          MYSQL_ROOT_PASSWORD: rootsecret
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -prootsecret"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      redis:
+        image: redis:7.4-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s --health-timeout=3s --health-retries=10
+
+    defaults:
+      run:
+        working-directory: api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_mysql, bcmath, intl, zip, redis
+          coverage: none
+
+      # Reinstalling every package on every run wastes minutes. The cache key is the
+      # lock file hash, so it is reused until a dependency actually changes.
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: api/vendor
+          key: composer-${{ matrix.php }}-${{ hashFiles('api/composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Check code style
+        run: ./vendor/bin/pint --test
+
+      - name: Run tests
+        run: php artisan test
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+          CACHE_STORE: array
+
+      # The tests above use SQLite for speed. This step proves the migrations also
+      # run against the database the application really uses: SQLite is forgiving
+      # about things MySQL is not, and a migration that only works on SQLite is a
+      # deploy that fails at 3am.
+      - name: Verify migrations against MySQL
+        run: php artisan migrate --force
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: northline_test
+          DB_USERNAME: root
+          DB_PASSWORD: rootsecret
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `npm ci` installs exactly what the lock file says and fails if package.json
+      # and the lock file disagree. `npm install` would quietly resolve new versions,
+      # which is the last thing you want in a build that must be reproducible.
+      - run: npm ci
+
+      - run: npx tsc --noEmit
+
+      - run: npx eslint .
+
+      - run: npm run build
+        env:
+          NORTHLINE_API_URL: http://localhost:8080/api/v1
+          NORTHLINE_API_KEY: ci_placeholder_key

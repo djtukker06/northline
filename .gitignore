@@ -1,45 +1,22 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# Reference material that is not ours to publish.
+# Third-party skill packages carry their own git history and licences.
+/Skills/
+# Inspiration videos are third-party reference, ~29 MB, and not part of the product.
+/inspiratie/
+# The brand guide lives in the repo as frontend/docs/visual-style-guide.png instead.
+/styleguide/
 
 # macOS
 .DS_Store
 **/.DS_Store
+
+# Local environment. Never commit real secrets; .env.example is the template.
+.env
+.env.*
+!.env.example
+
+# Docker volumes
+/.docker-data/
+
+# Local agent and editor config
+/.claude/
